@@ -65,7 +65,6 @@ def fetch_all_as_dict(cursor):
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 def fetch_one_as_dict(cursor):
-    if cursor.rowcount == 0: return None
     row = cursor.fetchone()
     if not row: return None
     columns = [column[0] for column in cursor.description]
