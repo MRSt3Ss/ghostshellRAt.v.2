@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>GHOST_OS::ACCESS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Share Tech Mono', monospace; }
+        :root { --bg: #050505; --surface: #0a0a0a; --primary: #00ff33; --danger: #ff003c; --text: #e0e0e0; --dim: #557755; }
+        body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background-image: linear-gradient(rgba(0, 255, 51, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 51, 0.03) 1px, transparent 1px); background-size: 20px 20px; }
+        .login-card { background: var(--surface); border: 1px solid var(--dim); border-radius: 4px; padding: 40px 24px; box-shadow: 0 0 30px rgba(0, 255, 51, 0.05); text-align: center; position: relative; max-width: 400px; width: 100%; }
+        .login-card::before { content:''; position:absolute; top:-1px; left:-1px; width:20px; height:20px; border-top: 2px solid var(--primary); border-left: 2px solid var(--primary); }
+        .login-card::after { content:''; position:absolute; bottom:-1px; right:-1px; width:20px; height:20px; border-bottom: 2px solid var(--primary); border-right: 2px solid var(--primary); }
+        .login-logo img { width: 180px; margin-bottom: 25px; filter: drop-shadow(0 0 15px var(--primary)); }
+        .login-title { color: var(--primary); font-size: 1.5rem; letter-spacing: 4px; margin-bottom: 25px; text-transform: uppercase; }
+        .input-field { width: 100%; background: #000; border: 1px solid #333; padding: 16px; color: var(--primary); font-size: 1.2rem; text-align: center; outline: none; margin-bottom: 24px; letter-spacing: 3px; }
+        .auth-btn { background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 15px; width: 100%; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.2s; text-transform: uppercase; }
+        .auth-btn:hover { background: var(--primary); color: #000; box-shadow: 0 0 20px var(--primary); }
+        .error-message { color: var(--danger); margin-top: 20px; font-size: 0.9rem; min-height: 24px; text-transform: uppercase; }
+        
+        /* POPUP SYSTEM */
+        .system-popup { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 10000; }
+        .popup-card { background: var(--surface); border: 1px solid var(--primary); padding: 30px; max-width: 360px; width: 100%; text-align: center; }
+        .popup-bar { width: 100%; height: 10px; background: #000; border: 1px solid #333; margin: 20px 0; overflow: hidden; }
+        .popup-fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-logo"><img src="https://i.ibb.co.com/mCr6hGfy/Gemini-Generated-Image-xp6maxxp6maxxp6m-1.png"></div>
+        <div class="login-title"><i class="fas fa-terminal"></i> AUTHENTICATION</div>
+        <input type="text" class="input-field" id="userId" placeholder="ENTER UID" onkeydown="if(event.key==='Enter') attemptLogin()">
+        <button class="auth-btn" onclick="attemptLogin()"><i class="fa-solid fa-bolt"></i> CONNECT</button>
+        <div id="loginStatus" class="error-message"></div>
+    </div>
+
+    <div id="systemPopup" class="system-popup">
+        <div class="popup-card">
+            <div style="color:var(--primary); margin-bottom:15px; font-size:1.2rem;">SYSTEM HANDSHAKE</div>
+            <div class="popup-bar"><div class="popup-fill" id="popupFill"></div></div>
+            <div id="popupMsg" style="font-size:0.8rem; color:var(--dim);">INITIALIZING...</div>
+        </div>
+    </div>
+
+    <script>
+        const popup = document.getElementById('systemPopup');
+        const popupFill = document.getElementById('popupFill');
+        const popupMsg = document.getElementById('popupMsg');
+        const loginStatus = document.getElementById('loginStatus');
+
+        if(localStorage.getItem('ghost_uid')) window.location.href = '/dashboard';
+
+        async function attemptLogin() {
+            const userId = document.getElementById('userId').value.trim();
+            if (!userId) { loginStatus.innerText = '>_ UID REQUIRED'; return; }
+            
+            // CHECK HWID VIA BRIDGE
+            let hwid = "BROWSER_UNSUPPORTED";
+            if (window.AndroidBridge) {
+                hwid = window.AndroidBridge.getHWID();
+            } else {
+                loginStatus.innerText = '[!] ERROR: HARAP GUNAKAN APK ADMIN RESMI!';
+                return;
+            }
+
+            popup.style.display = 'flex';
+            popupFill.style.width = '30%';
+            popupMsg.innerText = 'CONTACTING SHADOW SERVER...';
+
+            try {
+                const res = await fetch('/api/buyer/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ uid: userId, hwid: hwid })
+                });
+                
+                const data = await res.json();
+                popupFill.style.width = '100%';
+
+                if (data.status === 'ok') {
+                    popupMsg.innerText = 'ACCESS GRANTED';
+                    localStorage.setItem('ghost_uid', userId);
+                    setTimeout(() => window.location.href = '/dashboard', 800);
+                } else {
+                    popup.style.display = 'none';
+                    loginStatus.innerText = '[!] ACCESS DENIED: ' + data.message;
+                }
+            } catch (e) {
+                popup.style.display = 'none';
+                loginStatus.innerText = '[!] SYSTEM ERROR: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

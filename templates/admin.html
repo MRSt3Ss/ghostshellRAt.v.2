@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GHOST_OS::ADMIN_PANEL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family: 'Share Tech Mono', monospace; }
+        :root { --bg: #050505; --surface: #0a0a0a; --primary: #00ff33; --danger: #ff003c; --text: #e0e0e0; --dim: #557755; }
+        body { background: var(--bg); color: var(--text); padding: 20px; background-image: linear-gradient(rgba(0,255,51,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,51,0.03) 1px, transparent 1px); background-size: 20px 20px; }
+        
+        /* LOGIN VIEW */
+        .login-view { height: 80vh; display: flex; align-items: center; justify-content: center; }
+        .card { background: var(--surface); border: 1px solid var(--dim); padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 0 20px rgba(0,255,51,0.05); }
+        .card h2 { color: var(--primary); text-align: center; margin-bottom: 25px; letter-spacing: 4px; }
+        input { width: 100%; background: #000; border: 1px solid #333; padding: 12px; color: var(--primary); margin-bottom: 15px; outline: none; }
+        button { width: 100%; background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 12px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { background: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary); }
+
+        /* DASHBOARD VIEW */
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid var(--primary); padding-bottom: 10px; }
+        .create-form { background: var(--surface); padding: 20px; border: 1px solid var(--dim); margin-bottom: 30px; display: flex; gap: 10px; align-items: flex-end; }
+        .create-form .group { flex: 1; }
+        .create-form label { display: block; font-size: 0.8rem; color: var(--dim); margin-bottom: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid #222; }
+        th { text-align: left; padding: 12px; background: #000; color: var(--dim); border-bottom: 1px solid var(--primary); font-size: 0.8rem; }
+        td { padding: 12px; border-bottom: 1px solid #111; font-size: 0.9rem; }
+        .btn-sm { padding: 5px 10px; font-size: 0.7rem; width: auto; display: inline-block; margin-right: 5px; }
+        .btn-danger { border-color: var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: #fff; box-shadow: 0 0 10px var(--danger); }
+        
+        .badge { background: #111; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem; border: 1px solid #333; }
+        .badge.active { color: var(--primary); border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    {% if view == 'login' %}
+    <div class="login-view">
+        <div class="card">
+            <h2>ADMIN ACCESS</h2>
+            <input type="text" id="u" placeholder="USERNAME">
+            <input type="password" id="p" placeholder="PASSWORD">
+            <button onclick="login()">AUTHORIZE</button>
+            <p id="err" style="color:var(--danger); text-align:center; margin-top:10px; font-size:0.8rem;"></p>
+        </div>
+    </div>
+    <script>
+        async function login() {
+            const u = document.getElementById('u').value;
+            const p = document.getElementById('p').value;
+            const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({u, p})
+            });
+            if (await res.status === 200) location.reload();
+            else document.getElementById('err').innerText = 'INVALID CREDENTIALS';
+        }
+    </script>
+    {% else %}
+    <div class="container">
+        <header>
+            <h1 style="color:var(--primary); font-size: 1.5rem;"><i class="fas fa-user-shield"></i> GHOST_SHELL MANAGER</h1>
+            <button onclick="location.href='/api/admin/logout'" style="width: auto; padding: 5px 15px; border-color: var(--danger); color: var(--danger);">LOGOUT</button>
+        </header>
+
+        <div class="create-form">
+            <div class="group">
+                <label>NEW BUYER UID</label>
+                <input type="text" id="n_uid" placeholder="GHOST_777" style="margin:0;">
+            </div>
+            <div class="group">
+                <label>ACCESS DURATION (DAYS)</label>
+                <input type="number" id="n_days" value="30" style="margin:0;">
+            </div>
+            <button onclick="createUser()" style="width: 150px;">CREATE UID</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>UID</th>
+                    <th>HWID / DEVICE</th>
+                    <th>EXPIRY DATE</th>
+                    <th>STATUS</th>
+                    <th>ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td style="color:var(--primary)">{{ u.uid }}</td>
+                    <td style="font-size: 0.75rem; color: {{ 'var(--primary)' if u.locked_hwid else 'var(--dim)' }}">
+                        {{ u.locked_hwid or 'AWAITING FIRST LOGIN' }}
+                    </td>
+                    <td>{{ u.expiry_date }}</td>
+                    <td>
+                        <span class="badge active">ACTIVE</span>
+                    </td>
+                    <td>
+                        <button class="btn-sm" onclick="resetHwid('{{ u.uid }}')">RESET HWID</button>
+                        <button class="btn-sm btn-danger" onclick="deleteUser('{{ u.uid }}')">DELETE</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script>
+        async function createUser() {
+            const uid = document.getElementById('n_uid').value;
+            const days = document.getElementById('n_days').value;
+            if(!uid) return alert('UID REQUIRED');
+            const res = await fetch('/api/admin/create_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({uid, days})
+            });
+            if (await res.status === 200) location.reload();
+            else alert('Error: UID Might already exist');
+        }
+
+        async function resetHwid(uid) {
+            if(!confirm('Reset HWID for ' + uid + '?')) return;
+            await fetch('/api/admin/reset_hwid', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({uid})
+            });
+            location.reload();
+        }
+
+        async function deleteUser(uid) {
+            if(!confirm('DELETE USER ' + uid + ' FOREVER?')) return;
+            await fetch('/api/admin/delete_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({uid})
+            });
+            location.reload();
+        }
+    </script>
+    {% endif %}
+</body>
+</html>
