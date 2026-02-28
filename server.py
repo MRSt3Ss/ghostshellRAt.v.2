@@ -131,7 +131,7 @@ def client_handler(conn, addr):
 def tcp_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(('0.0.0.0', 8888))
+    s.bind(('0.0.0.0', 2222))
     s.listen(20)
     add_log("TCP Engine Active on Port 8888")
     while True:
